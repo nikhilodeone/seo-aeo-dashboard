@@ -48,6 +48,11 @@ export function Competitors() {
           AI works from general knowledge, so check each one is a real rival for the same searches. Remove any that are not and re-run.
         </Notice>
       )}
+      {raw.competitorSource === "web" && (
+        <Notice tone="neutral" title="Found from a free web search">
+          These sites turned up for your site's main topics. This search is not Google and is not a ranking, so check each one is a real rival and swap any that are not.
+        </Notice>
+      )}
       {raw.competitorSource === "serp" && <Notice title="Found from Google results">These sites showed up most often for your keywords. Swap in any that are not true rivals and re-run.</Notice>}
 
       {report.competitors.length === 0 ? (
@@ -130,7 +135,7 @@ export function Competitors() {
       </Section>
 
       {raw.suggested.length > 0 && (
-        <Section title="Suggestions" lead={raw.suggested.some((s) => s.source === "serp") ? "Sites that appeared most often in Google results for your keywords." : "Suggested by AI. Verify before adding."}>
+        <Section title="Suggestions" lead={raw.suggested.some((s) => s.source === "serp") ? "Sites that appeared most often in Google results for your keywords." : raw.suggested.some((s) => s.source === "web") ? "Sites that appeared most often in a web search for your topics. Verify before adding." : "Suggested by AI. Verify before adding."}>
           <ul className="divide-y divide-line border-y border-line">
             {raw.suggested
               .filter((s) => !list.includes(s.domain))
@@ -138,7 +143,7 @@ export function Competitors() {
                 <li key={s.domain} className="flex items-center justify-between gap-4 py-2.5 text-sm">
                   <div>
                     <p className="font-medium">{s.domain}</p>
-                    <p className="text-ink-2">{s.source === "serp" ? `In results for ${s.appearances} of your keywords, average position ${s.avgPosition}` : s.reason}</p>
+                    <p className="text-ink-2">{s.source === "serp" || s.source === "web" ? `In results for ${s.appearances} of your topics, average position ${s.avgPosition}` : s.reason}</p>
                   </div>
                   <Button size="sm" onClick={() => add(s.domain)} disabled={list.length >= 5}>
                     <Icon name="plus" size={14} />
