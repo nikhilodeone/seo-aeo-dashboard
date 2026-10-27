@@ -20,6 +20,10 @@ npm run dev        # http://localhost:3000
 
 Type a site address on the first screen. It works with no keys at all (crawl-only mode).
 
+## Finding competitors
+
+The most reliable way is to type 1 to 5 competitor domains on the setup screen. If you leave them blank, the app tries, in order: Google results (needs `SERPER_API_KEY`), a free web search (no key, may be blocked), then AI suggestions (needs `ANTHROPIC_API_KEY`). With none of those working you are told, and asked to enter competitors.
+
 ## Optional connections
 
 Copy `.env.example` to `.env.local` and fill in what you want.
@@ -28,6 +32,7 @@ Copy `.env.example` to `.env.local` and fill in what you want.
 | --- | --- |
 | `SERPER_API_KEY` | Real Google rankings for your keywords, People Also Ask questions, and automatic competitor discovery (serper.dev). `SERPER_NUM` sets results per query (default 20). |
 | `ANTHROPIC_API_KEY` | AI competitor suggestions, AI question ideas and "Draft with AI" content briefs. `ANTHROPIC_MODEL` overrides the model (default `claude-sonnet-5-5`). |
+| `KEYLESS_SEARCH` | On by default. Without a Serper key the app tries a free web search to suggest competitors. It is best effort (it can be blocked from cloud servers) and never supplies rankings. Set to `false` to turn it off. |
 | `DASHBOARD_PASSCODE` | Protects the server routes that use your keys. Set it on any public deployment. Visitors enter it once per browser session. |
 | `CRAWLER_USER_AGENT` | Override the crawler's user agent. |
 | `CRAWL_IGNORE_ROBOTS` | `true` to ignore robots.txt. Only use on sites you own. |
