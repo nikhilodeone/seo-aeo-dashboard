@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+  --plane: #f2f3f4;
+  --surface: #fdfdfc;
+  --line: #dfe0dc;
+  --ink: #0b0b0b;
+  --ink-2: #4a4945;
+  --ink-3: #898781;
+  --accent: #2a78d6;
+  --accent-soft: #e4eefb;
+  --rail: #0f2038;
+  --c1: #2a78d6;
+  --c2: #eb6834;
+  --c3: #1baf7a;
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --warn: #fab219;
+  --serious: #ec835a;
+  --crit: #d03b3b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --plane: #0d0d0d;
+    --surface: #1a1a19;
+    --line: #2c2c2a;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --accent: #3987e5;
+    --accent-soft: #15273e;
+    --rail: #0a1626;
+    --c1: #3987e5;
+    --c2: #d95926;
+    --c3: #199e70;
+    --good-ink: #0ca30c;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--plane);
+  color: var(--ink);
+  font-family: "Schibsted Grotesk Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-dot {
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
