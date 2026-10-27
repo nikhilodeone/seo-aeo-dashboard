@@ -49,6 +49,8 @@ export const getConfig = () => call<Capabilities>("/api/config");
 export const crawlSite = (url: string, maxPages: number, signal?: AbortSignal) => call<{ profile: SiteProfile }>("/api/crawl", { url, maxPages }, signal);
 export const searchSerp = (queries: string[], gl: string, hl: string) => call<{ results: SerpResult[]; errors: string[] }>("/api/serp", { queries, gl, hl });
 
+export const webDiscover = (queries: string[], gl: string) => call<{ results: { query: string; hits: { position: number; url: string; domain: string; title: string }[] }[]; errors: string[] }>("/api/discover", { queries, gl });
+
 export interface DiscoverReply {
   competitors: { domain: string; reason: string }[];
   questions: { q: string; topic: string }[];

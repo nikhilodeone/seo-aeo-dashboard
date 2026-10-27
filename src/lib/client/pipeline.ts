@@ -27,7 +27,9 @@ export const initialSteps = (): Step[] =>
 const BLOCK = [
   "wikipedia.org", "youtube.com", "facebook.com", "instagram.com", "linkedin.com", "twitter.com", "x.com", "reddit.com", "quora.com",
   "pinterest.com", "medium.com", "github.com", "amazon.com", "amazon.in", "amazon.co.uk", "flipkart.com", "ebay.com", "walmart.com",
-  "indeed.com", "glassdoor.com", "justdial.com", "indiamart.com", "tripadvisor.com", "yelp.com", "trustpilot.com", "forbes.com",
+  "indeed.com", "glassdoor.com", "justdial.com", "indiamart.com", "myntra.com", "ajio.com", "nykaa.com", "nykaafashion.com", "tatacliq.com",
+  "meesho.com", "snapdeal.com", "jiomart.com", "shopclues.com", "etsy.com", "alibaba.com", "aliexpress.com", "olx.in", "sulekha.com",
+  "shopify.com", "wordpress.com", "blogspot.com", "ebay.in", "quora.com", "duckduckgo.com", "bing.com", "yahoo.com", "brave.com", "tripadvisor.com", "yelp.com", "trustpilot.com", "forbes.com",
   "nytimes.com", "theguardian.com", "bbc.com", "timesofindia.indiatimes.com", "hindustantimes.com", "economictimes.indiatimes.com",
   "google.com", "apple.com", "play.google.com", "apps.apple.com", "tiktok.com", "vimeo.com", "scribd.com", "slideshare.net",
 ];
@@ -94,6 +96,7 @@ export async function runPipeline(
   let source: RawData["competitorSource"] = "none";
   let aiQs: AiQuestion[] = [];
   const suggested: SuggestedCompetitor[] = [];
+  let webNote = "";
 
   const tally = new Map<string, { n: number; sum: number }>();
   for (const res of Object.values(serp)) {
@@ -110,6 +113,34 @@ export async function runPipeline(
 
   const manual = [...new Set(input.competitors.map((c) => normalizeUrlInput(c)).filter((c): c is string => !!c).map(hostOf))].filter((d) => d !== ownHost).slice(0, 5);
 
+  /* Free fallback when no Serper key: ask a keyless search which sites show up for the site's topics. */
+  let webTried = false;
+  if (!manual.length && input.autoDiscover && !suggested.length && !caps.serp && caps.discover && seeds.length) {
+    webTried = true;
+    onStep("discover", "running", "Searching the web for sites that cover your topics");
+    try {
+      const r = await api.webDiscover(seeds.slice(0, 6), input.country);
+      const wt = new Map<string, { n: number; sum: number }>();
+      for (const res of r.results) {
+        const seenHere = new Set<string>();
+        for (const h of res.hits.slice(0, 10)) {
+          const d = h.domain;
+          if (!d || d === ownHost || d.endsWith(`.${ownHost}`) || blocked(d) || seenHere.has(d)) continue;
+          seenHere.add(d);
+          const t = wt.get(d) ?? { n: 0, sum: 0 };
+          t.n++;
+          t.sum += h.position;
+          wt.set(d, t);
+        }
+      }
+      const wr = [...wt.entries()].sort((a, b) => b[1].n - a[1].n || a[1].sum / a[1].n - b[1].sum / b[1].n);
+      for (const [domain, t] of wr.slice(0, 8)) suggested.push({ domain, appearances: t.n, avgPosition: Math.round((t.sum / t.n) * 10) / 10, source: "web" });
+    } catch (e) {
+      if (e instanceof api.ApiError && e.code === "auth") throw e;
+      webNote = (e as Error).message;
+    }
+  }
+
   onStep("discover", "running");
   if (manual.length) {
     compDomains = manual;
@@ -118,8 +149,8 @@ export async function runPipeline(
   } else if (input.autoDiscover && suggested.length) {
     const strong = suggested.filter((s) => s.appearances >= 2);
     compDomains = (strong.length ? strong : suggested.slice(0, 3)).slice(0, 4).map((s) => s.domain);
-    source = "serp";
-    onStep("discover", "done", `Found ${compDomains.length} from Google results`);
+    source = suggested[0].source === "web" ? "web" : "serp";
+    onStep("discover", "done", `Found ${compDomains.length} from ${source === "web" ? "a web search. Check they are right" : "Google results"}`);
   } else if (input.autoDiscover && caps.ai) {
     try {
       const d = await api.aiDiscover({ domain: ownHost, title: own.pages[0]?.title ?? "", topTerms: seeds.slice(0, 12), country: input.country });
@@ -133,7 +164,7 @@ export async function runPipeline(
       onStep("discover", "skipped", (e as Error).message);
     }
   } else {
-    onStep("discover", "skipped", input.autoDiscover ? "Add a Serper or Anthropic key, or enter competitor URLs, to find competitors" : "No competitors entered");
+    onStep("discover", "skipped", !input.autoDiscover ? "No competitors entered" : webTried ? `${webNote || "The web search found no clear competitors"}. Enter competitor URLs to compare` : "Enter competitor URLs, or add a Serper or Anthropic key to find them automatically");
   }
 
   /* 4. Competitor sites */
