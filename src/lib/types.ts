@@ -103,7 +103,7 @@ export interface SuggestedCompetitor {
   domain: string;
   appearances: number;
   avgPosition: number;
-  source: "serp" | "ai";
+  source: "serp" | "web" | "ai";
   reason?: string;
 }
 
@@ -129,7 +129,7 @@ export interface RawData {
   collectedAt: string;
   own: SiteProfile;
   competitors: SiteProfile[];
-  competitorSource: "manual" | "serp" | "ai" | "none";
+  competitorSource: "manual" | "serp" | "web" | "ai" | "none";
   suggested: SuggestedCompetitor[];
   competitorErrors: { domain: string; error: string }[];
   serp: Record<string, SerpResult>;
@@ -140,6 +140,8 @@ export interface RawData {
 
 export interface Capabilities {
   serp: boolean;
+  /** Free, best-effort competitor search available (no key needed). */
+  discover: boolean;
   ai: boolean;
   passcodeRequired: boolean;
   authorized: boolean;
