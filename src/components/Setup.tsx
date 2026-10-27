@@ -83,7 +83,7 @@ export function Connections() {
       <li className="flex items-start justify-between gap-4">
         <div>
           <p className="font-medium">Google rankings and questions</p>
-          <p className="text-ink-2">{caps.serp ? "Live positions, People Also Ask, automatic competitors" : "Set SERPER_API_KEY to add live positions, People Also Ask and automatic competitors"}</p>
+          <p className="text-ink-2">{caps.serp ? "Live positions, People Also Ask, automatic competitors" : caps.discover ? "Set SERPER_API_KEY for live positions and People Also Ask. Competitors are found with a free, best-effort web search; if it is blocked, enter them yourself" : "Set SERPER_API_KEY to add live positions, People Also Ask and automatic competitors"}</p>
         </div>
         {caps.serp ? <Status tone="good">On</Status> : <Status tone="neutral">Off</Status>}
       </li>
