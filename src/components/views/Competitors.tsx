@@ -89,7 +89,7 @@ export function Competitors() {
       )}
 
       {raw.competitorErrors.length > 0 && (
-        <Notice tone="crit" title="Some sites could not be read">
+        <Notice tone="neutral" title="Some sites were left out or could not be read">
           <ul className="list-disc pl-5">
             {raw.competitorErrors.map((e) => (
               <li key={e.domain}>

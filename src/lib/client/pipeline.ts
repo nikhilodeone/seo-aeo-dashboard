@@ -97,6 +97,7 @@ export async function runPipeline(
   let aiQs: AiQuestion[] = [];
   const suggested: SuggestedCompetitor[] = [];
   let webNote = "";
+  let discovered = false;
   let discoverNote = "";
 
   const tally = new Map<string, { n: number; sum: number }>();
@@ -149,9 +150,12 @@ export async function runPipeline(
     onStep("discover", "done", `Using your ${manual.length} competitor${manual.length === 1 ? "" : "s"}`);
   } else if (input.autoDiscover && suggested.length) {
     const strong = suggested.filter((s) => s.appearances >= 2);
-    compDomains = (strong.length ? strong : suggested.slice(0, 3)).slice(0, 4).map((s) => s.domain);
+    // Read a few extra candidates; the ones that do not match your topics are dropped after reading.
+    const pool = [...strong, ...suggested.filter((s) => !strong.includes(s))];
+    compDomains = pool.slice(0, 6).map((s) => s.domain);
+    discovered = true;
     source = suggested[0].source === "web" ? "web" : "serp";
-    onStep("discover", "done", `Found ${compDomains.length} from ${source === "web" ? "a web search. Check they are right" : "Google results"}`);
+    onStep("discover", "done", `Found ${compDomains.length} candidates from ${source === "web" ? "a web search" : "Google results"}`);
   } else if (input.autoDiscover && caps.ai) {
     try {
       const d = await api.aiDiscover({ domain: ownHost, title: own.pages[0]?.title ?? "", topTerms: seeds.slice(0, 12), country: input.country });
@@ -188,6 +192,29 @@ export async function runPipeline(
       );
     }
     competitors.sort((a, b) => compDomains.indexOf(a.domain) - compDomains.indexOf(b.domain));
+    if (discovered) {
+      // Keep only candidates whose pages are about the same things as yours.
+      const words = (p: SiteProfile) => {
+        const set = new Set<string>();
+        for (const t of candidateTerms(aggregateSite(p), p.brandTokens).slice(0, 60)) for (const w of t.key.split(" ")) if (w.length > 2) set.add(w);
+        return set;
+      };
+      const mine = words(own);
+      const scored = competitors.map((c) => {
+        const theirs = words(c);
+        let shared = 0;
+        for (const w of theirs) if (mine.has(w)) shared++;
+        return { c, shared, size: theirs.size };
+      });
+      let keep = scored.filter((x) => x.shared >= 2);
+      if (!keep.length) keep = scored.filter((x) => x.shared >= 1).sort((a, b) => b.shared - a.shared).slice(0, 2);
+      const kept = new Set(keep.map((x) => x.c.domain));
+      const dropped = scored.filter((x) => !kept.has(x.c.domain));
+      competitors.length = 0;
+      competitors.push(...keep.sort((a, b) => b.shared - a.shared).slice(0, 4).map((x) => x.c));
+      for (const d of dropped) competitorErrors.push({ domain: d.c.domain, error: `Left out: its pages do not cover the same topics as yours (${d.shared} words in common).` });
+      if (!competitors.length) discoverNote = "Candidates were found but none covers the same topics as your site.";
+    }
     onStep("crawl-comp", competitors.length ? "done" : "error", `${competitors.length} read${competitorErrors.length ? `, ${competitorErrors.length} failed` : ""}`);
   } else {
     onStep("crawl-comp", "skipped", "No competitors to read");
