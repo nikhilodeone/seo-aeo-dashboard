@@ -22,6 +22,8 @@ Type a site address on the first screen. It works with no keys at all (crawl-onl
 
 ## Finding competitors
 
+Automatic discovery works from what your site sells: it picks a few broad head terms from your headings and titles (for example "designer", "dress"), searches them with your country ("designer online india"), and counts which sites keep appearing. After reading those sites it drops any whose pages do not cover the same topics as yours. This uses up to 6 extra Serper searches per run. Brand-name searches such as "brands like X" were tested and return nothing useful, so they are not used.
+
 The most reliable way is to type 1 to 5 competitor domains on the setup screen. If you leave them blank, the app tries, in order: Google results (needs `SERPER_API_KEY`), a free web search (no key, may be blocked), then AI suggestions (needs `ANTHROPIC_API_KEY`). With none of those working you are told, and asked to enter competitors.
 
 ## Optional connections

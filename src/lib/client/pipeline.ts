@@ -1,3 +1,4 @@
+import { discoveryQueries } from "../analysis/discovery";
 import { aggregateSite, candidateTerms, gapAnalysis } from "../analysis/keywords";
 import type { RankInfo } from "../analysis/ranks";
 import type { AiQuestion, Capabilities, RawData, RunInput, SerpResult, SiteProfile, SuggestedCompetitor } from "../types";
@@ -83,7 +84,17 @@ export async function runPipeline(
     }
   };
 
-  /* 2. Rankings for your own keywords (phase A) */
+  const manual = [...new Set(input.competitors.map((c) => normalizeUrlInput(c)).filter((c): c is string => !!c).map(hostOf))].filter((d) => d !== ownHost).slice(0, 5);
+
+  /* 2a. Competitor discovery queries: broad "what you sell + where" searches, run first so a small budget never starves them. */
+  const discQueries = !manual.length && input.autoDiscover ? discoveryQueries(ownMap, own.brandTokens, input.country) : [];
+  if (caps.serp && discQueries.length) {
+    onStep("discover", "running", `Searching Google for who else covers ${discQueries.length} of your topics`);
+    await runSerp(discQueries);
+  }
+  const discSet = new Set(discQueries.map((q) => q.toLowerCase()));
+
+  /* 2b. Rankings for your own keywords (phase A) */
   const phaseA = seeds.slice(0, Math.min(10, Math.max(0, Math.floor(budget * 0.4))));
   if (phaseA.length) {
     onStep("serp", "running", `Checking ${phaseA.length} of your keywords`);
@@ -100,20 +111,21 @@ export async function runPipeline(
   let discovered = false;
   let discoverNote = "";
 
-  const tally = new Map<string, { n: number; sum: number }>();
+  // Results for the broad discovery queries count double: they are the ones that surface real rivals.
+  const tally = new Map<string, { n: number; sum: number; w: number }>();
   for (const res of Object.values(serp)) {
+    const weight = discSet.has(res.query.toLowerCase()) ? 2 : 1;
     for (const o of res.organic.slice(0, 10)) {
       if (o.domain === ownHost || o.domain.endsWith(`.${ownHost}`) || blocked(o.domain)) continue;
-      const t = tally.get(o.domain) ?? { n: 0, sum: 0 };
+      const t = tally.get(o.domain) ?? { n: 0, sum: 0, w: 0 };
       t.n++;
+      t.w += weight;
       t.sum += o.position;
       tally.set(o.domain, t);
     }
   }
-  const ranked = [...tally.entries()].sort((a, b) => b[1].n - a[1].n || a[1].sum / a[1].n - b[1].sum / b[1].n);
+  const ranked = [...tally.entries()].sort((a, b) => b[1].w - a[1].w || a[1].sum / a[1].n - b[1].sum / b[1].n);
   for (const [domain, t] of ranked.slice(0, 8)) suggested.push({ domain, appearances: t.n, avgPosition: Math.round((t.sum / t.n) * 10) / 10, source: "serp" });
-
-  const manual = [...new Set(input.competitors.map((c) => normalizeUrlInput(c)).filter((c): c is string => !!c).map(hostOf))].filter((d) => d !== ownHost).slice(0, 5);
 
   /* Free fallback when no Serper key: ask a keyless search which sites show up for the site's topics. */
   let webTried = false;
@@ -121,7 +133,7 @@ export async function runPipeline(
     webTried = true;
     onStep("discover", "running", "Searching the web for sites that cover your topics");
     try {
-      const r = await api.webDiscover(seeds.slice(0, 6), input.country);
+      const r = await api.webDiscover(discQueries.length ? discQueries : seeds.slice(0, 6), input.country);
       const wt = new Map<string, { n: number; sum: number }>();
       for (const res of r.results) {
         const seenHere = new Set<string>();
@@ -149,7 +161,7 @@ export async function runPipeline(
     source = "manual";
     onStep("discover", "done", `Using your ${manual.length} competitor${manual.length === 1 ? "" : "s"}`);
   } else if (input.autoDiscover && suggested.length) {
-    const strong = suggested.filter((s) => s.appearances >= 2);
+    const strong = suggested.filter((s) => s.appearances >= 2);  // appearances = number of queries it showed up in
     // Read a few extra candidates; the ones that do not match your topics are dropped after reading.
     const pool = [...strong, ...suggested.filter((s) => !strong.includes(s))];
     compDomains = pool.slice(0, 6).map((s) => s.domain);
