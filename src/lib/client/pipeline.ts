@@ -1,4 +1,4 @@
-import { discoveryQueries } from "../analysis/discovery";
+import { contextQueries, discoveryQueries, matchBrandDomain, parseContext } from "../analysis/discovery";
 import { aggregateSite, candidateTerms, gapAnalysis } from "../analysis/keywords";
 import type { RankInfo } from "../analysis/ranks";
 import type { AiQuestion, Capabilities, RawData, RunInput, SerpResult, SiteProfile, SuggestedCompetitor } from "../types";
@@ -86,17 +86,49 @@ export async function runPipeline(
 
   // With no competitors typed in, always try to find some. A caller can no longer switch this off by mistake.
   input = { ...input, autoDiscover: true };
-  const manual = [...new Set(input.competitors.map((c) => normalizeUrlInput(c)).filter((c): c is string => !!c).map(hostOf))].filter((d) => d !== ownHost).slice(0, 5);
+  const toHost = (list: string[]) => [...new Set(list.map((c) => normalizeUrlInput(c)).filter((c): c is string => !!c).map(hostOf))].filter((d) => d !== ownHost);
+  const manual = toHost(input.competitors).slice(0, 5);
 
-  /* 2a. Competitor discovery queries: broad "what you sell + where" searches, run first so a small budget never starves them. */
-  const discQueries = !manual.length && input.autoDiscover ? discoveryQueries(ownMap, own.brandTokens, input.country) : [];
+  /* 2a. The owner's description: domains they typed, rival names to look up, and topics to search. */
+  const ctx = parseContext(input.context ?? "");
+  const where = (input.country || "").toLowerCase();
+  const named: string[] = [];
+  const contextNotes: string[] = [];
+  let rivalQueries: string[] = [];
+  if (!manual.length) {
+    for (const d of toHost(ctx.domains)) named.push(d);
+    if (ctx.rivalNames.length) {
+      if (caps.serp) {
+        rivalQueries = ctx.rivalNames.slice(0, 3).map((n) => `${n} official website`);
+        onStep("discover", "running", `Looking up ${ctx.rivalNames.length} rival${ctx.rivalNames.length === 1 ? "" : "s"} you named`);
+        await runSerp(rivalQueries);
+        const missed: string[] = [];
+        ctx.rivalNames.slice(0, 3).forEach((name, i) => {
+          const res = serp[rivalQueries[i].toLowerCase()];
+          const hit = res ? matchBrandDomain(name, res.organic.slice(0, 6).map((o) => o.domain).filter((d) => d !== ownHost && !blocked(d))) : null;
+          if (hit) named.push(hit);
+          else missed.push(name);
+        });
+        if (missed.length) contextNotes.push(`Could not find a website for ${missed.join(", ")}. Add ${missed.length === 1 ? "it" : "them"} by address if you want ${missed.length === 1 ? "it" : "them"} included.`);
+      } else {
+        contextNotes.push(`Rival names in your description (${ctx.rivalNames.join(", ")}) need a Serper key to look up. Type their website addresses instead.`);
+      }
+    }
+  }
+  const namedHosts = [...new Set(named)].slice(0, 5);
+  const namedSet = new Set(namedHosts);
+  if (namedHosts.length) contextNotes.unshift(`From your description: ${namedHosts.join(", ")}.`);
+
+  /* 2b. Competitor discovery queries: your description first, then broad "what you sell + where" searches from your pages. */
+  const needDiscovery = !manual.length && namedHosts.length < 3;
+  const discQueries = needDiscovery ? [...new Set([...contextQueries(ctx.topicText, where), ...discoveryQueries(ownMap, own.brandTokens, input.country)])].slice(0, 6) : [];
   if (caps.serp && discQueries.length) {
     onStep("discover", "running", `Searching Google for who else covers ${discQueries.length} of your topics`);
     await runSerp(discQueries);
   }
   const discSet = new Set(discQueries.map((q) => q.toLowerCase()));
 
-  /* 2b. Rankings for your own keywords (phase A) */
+  /* 2c. Rankings for your own keywords (phase A) */
   const phaseA = seeds.slice(0, Math.min(10, Math.max(0, Math.floor(budget * 0.4))));
   if (phaseA.length) {
     onStep("serp", "running", `Checking ${phaseA.length} of your keywords`);
@@ -115,7 +147,9 @@ export async function runPipeline(
 
   // Results for the broad discovery queries count double: they are the ones that surface real rivals.
   const tally = new Map<string, { n: number; sum: number; w: number }>();
+  const lookupSet = new Set(rivalQueries.map((q) => q.toLowerCase()));
   for (const res of Object.values(serp)) {
+    if (lookupSet.has(res.query.toLowerCase())) continue; // brand look-ups say nothing about who else competes
     const weight = discSet.has(res.query.toLowerCase()) ? 2 : 1;
     for (const o of res.organic.slice(0, 10)) {
       if (o.domain === ownHost || o.domain.endsWith(`.${ownHost}`) || blocked(o.domain)) continue;
@@ -162,18 +196,23 @@ export async function runPipeline(
     compDomains = manual;
     source = "manual";
     onStep("discover", "done", `Using your ${manual.length} competitor${manual.length === 1 ? "" : "s"}`);
-  } else if (input.autoDiscover && suggested.length) {
+  } else if (namedHosts.length >= 3) {
+    compDomains = namedHosts;
+    source = "manual";
+    onStep("discover", "done", `Using ${namedHosts.length} competitors from your description`);
+  } else if (input.autoDiscover && (suggested.length || namedHosts.length)) {
     const strong = suggested.filter((s) => s.appearances >= 2);  // appearances = number of queries it showed up in
     // Read a few extra candidates; the ones that do not match your topics are dropped after reading.
-    const pool = [...strong, ...suggested.filter((s) => !strong.includes(s))];
-    compDomains = pool.slice(0, 6).map((s) => s.domain);
-    discovered = true;
-    source = suggested[0].source === "web" ? "web" : "serp";
-    onStep("discover", "done", `Found ${compDomains.length} candidates from ${source === "web" ? "a web search" : "Google results"}`);
+    const pool = [...strong, ...suggested.filter((s) => !strong.includes(s))].filter((s) => !namedSet.has(s.domain));
+    const fill = pool.slice(0, namedHosts.length ? 4 : 6).map((s) => s.domain);
+    compDomains = [...namedHosts, ...fill];
+    discovered = fill.length > 0;
+    source = !fill.length ? "manual" : suggested[0].source === "web" ? "web" : "serp";
+    onStep("discover", "done", `${namedHosts.length ? `${namedHosts.length} from your description, ` : ""}${fill.length} candidate${fill.length === 1 ? "" : "s"} from ${suggested[0]?.source === "web" ? "a web search" : "Google results"}`);
   } else if (input.autoDiscover && caps.ai) {
     try {
-      const d = await api.aiDiscover({ domain: ownHost, title: own.pages[0]?.title ?? "", topTerms: seeds.slice(0, 12), country: input.country });
-      compDomains = d.competitors.map((c) => c.domain).filter((c) => c !== ownHost).slice(0, 4);
+      const d = await api.aiDiscover({ domain: ownHost, title: own.pages[0]?.title ?? "", topTerms: seeds.slice(0, 12), country: input.country, context: input.context?.slice(0, 500) });
+      compDomains = [...namedHosts, ...d.competitors.map((c) => c.domain).filter((c) => c !== ownHost && !namedSet.has(c))].slice(0, 4);
       for (const c of d.competitors) suggested.push({ domain: c.domain, appearances: 0, avgPosition: 0, source: "ai", reason: c.reason });
       aiQs = d.questions.map((q) => ({ q: q.q, topic: q.topic }));
       source = compDomains.length ? "ai" : "none";
@@ -207,6 +246,9 @@ export async function runPipeline(
     }
     competitors.sort((a, b) => compDomains.indexOf(a.domain) - compDomains.indexOf(b.domain));
     if (discovered) {
+      // Competitors you named yourself are never filtered out.
+      const namedSites = competitors.filter((c) => namedSet.has(c.domain));
+      const candidates = competitors.filter((c) => !namedSet.has(c.domain));
       // Keep only candidates whose pages are about the same things as yours.
       const words = (p: SiteProfile) => {
         const set = new Set<string>();
@@ -214,7 +256,9 @@ export async function runPipeline(
         return set;
       };
       const mine = words(own);
-      const scored = competitors.map((c) => {
+      // Your own description of the business counts as part of "what you are about".
+      for (const t of ctx.topicText ? ctx.topicText.toLowerCase().match(/[\p{L}\p{N}-]{3,}/gu) ?? [] : []) mine.add(t);
+      const scored = candidates.map((c) => {
         const theirs = words(c);
         let shared = 0;
         for (const w of theirs) if (mine.has(w)) shared++;
@@ -225,7 +269,7 @@ export async function runPipeline(
       const kept = new Set(keep.map((x) => x.c.domain));
       const dropped = scored.filter((x) => !kept.has(x.c.domain));
       competitors.length = 0;
-      competitors.push(...keep.sort((a, b) => b.shared - a.shared).slice(0, 4).map((x) => x.c));
+      competitors.push(...namedSites, ...keep.sort((a, b) => b.shared - a.shared).slice(0, Math.max(0, 4 - namedSites.length)).map((x) => x.c));
       for (const d of dropped) competitorErrors.push({ domain: d.c.domain, error: `Left out: its pages do not cover the same topics as yours (${d.shared} words in common).` });
       if (!competitors.length) discoverNote = "Candidates were found but none covers the same topics as your site.";
     }
@@ -275,6 +319,7 @@ export async function runPipeline(
     competitors,
     competitorSource: source,
     discoverNote: discoverNote || undefined,
+    contextNote: contextNotes.join(" ") || undefined,
     suggested,
     competitorErrors,
     serp,

@@ -55,7 +55,7 @@ export interface DiscoverReply {
   competitors: { domain: string; reason: string }[];
   questions: { q: string; topic: string }[];
 }
-export const aiDiscover = (p: { domain: string; title: string; topTerms: string[]; country: string }) => call<DiscoverReply>("/api/ai", { task: "discover", ...p });
+export const aiDiscover = (p: { domain: string; title: string; topTerms: string[]; country: string; context?: string }) => call<DiscoverReply>("/api/ai", { task: "discover", ...p });
 export const aiQuestions = (topics: string[], country: string) => call<{ questions: { q: string; topic: string }[] }>("/api/ai", { task: "questions", topics, country });
 
 export interface AiBrief {

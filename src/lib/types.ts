@@ -120,6 +120,8 @@ export interface RunInput {
   serpBudget: number;
   maxPages: number;
   autoDiscover: boolean;
+  /** Owner's description of the business, used to find relevant competitors. */
+  context?: string;
 }
 
 /** Everything collected from the network. The report is derived from this, deterministically. */
@@ -131,6 +133,8 @@ export interface RawData {
   competitors: SiteProfile[];
   /** Why automatic competitor discovery found nothing, shown on the Competitors tab. */
   discoverNote?: string;
+  /** What the owner's description contributed (rivals found, names not found). */
+  contextNote?: string;
   competitorSource: "manual" | "serp" | "web" | "ai" | "none";
   suggested: SuggestedCompetitor[];
   competitorErrors: { domain: string; error: string }[];

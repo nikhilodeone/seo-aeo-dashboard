@@ -90,7 +90,7 @@ export function DataView() {
             variant="primary"
             disabled={running}
             onClick={() => {
-              const input = optionsToInput(raw.input.url, raw.competitors.map((c) => c.domain), opts);
+              const input = optionsToInput(raw.input.url, raw.competitors.map((c) => c.domain), opts, raw.input.context ?? "");
               void run({ ...input, autoDiscover: raw.competitors.length === 0 });
             }}
           >

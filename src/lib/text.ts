@@ -120,3 +120,5 @@ export function classifyIntent(kw: string, brandTokens: string[] = []): Intent {
 export const AI_RETRIEVAL_BOTS = ["OAI-SearchBot", "ChatGPT-User", "PerplexityBot", "Claude-SearchBot", "Claude-User"] as const;
 export const AI_TRAINING_BOTS = ["GPTBot", "ClaudeBot", "anthropic-ai", "Google-Extended", "Applebot-Extended", "CCBot", "Bytespider", "Meta-ExternalAgent"] as const;
 export const AI_BOTS = [...AI_RETRIEVAL_BOTS, ...AI_TRAINING_BOTS];
+
+export const isStopword = (w: string): boolean => STOP.has(w);

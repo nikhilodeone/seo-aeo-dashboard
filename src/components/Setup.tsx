@@ -54,7 +54,7 @@ export function RunOptions({ value, onChange, serp }: { value: Options; onChange
   );
 }
 
-export function optionsToInput(url: string, competitors: string[], o: Options): RunInput {
+export function optionsToInput(url: string, competitors: string[], o: Options, context = ""): RunInput {
   const norm = normalizeUrlInput(url) ?? url;
   return {
     // Keep what the person typed: the server tries https first and falls back to http only when no scheme was given.
@@ -65,6 +65,7 @@ export function optionsToInput(url: string, competitors: string[], o: Options): 
     serpBudget: o.serpBudget,
     maxPages: o.maxPages,
     autoDiscover: competitors.length === 0,
+    context: context.trim() ? context.trim().slice(0, 500) : undefined,
   };
 }
 
@@ -109,6 +110,7 @@ export function Setup() {
   const { run, caps, domains, openDomain, snapshots } = useApp();
   const [url, setUrl] = useState("");
   const [comps, setComps] = useState("");
+  const [about, setAbout] = useState("");
   const [opts, setOpts] = useState<Options>(defaultOptions);
   const [err, setErr] = useState<string | null>(null);
 
@@ -126,7 +128,7 @@ export function Setup() {
       return;
     }
     setErr(null);
-    void run(optionsToInput(url, list, opts));
+    void run(optionsToInput(url, list, opts, about));
   };
 
   return (
@@ -162,6 +164,18 @@ export function Setup() {
             </Button>
           </div>
           {err && <p id="site-err" className="mt-2 text-sm text-crit" role="alert">{err}</p>}
+
+          <label htmlFor="about" className="mb-1.5 mt-6 block text-sm font-medium">About your business <span className="font-normal text-ink-2">(optional, helps find the right competitors)</span></label>
+          <textarea
+            id="about"
+            rows={3}
+            maxLength={500}
+            value={about}
+            onChange={(e) => setAbout(e.target.value)}
+            placeholder={"What you sell, who to, and where. Name rivals if you know them.\nExample: Indian designer womenswear label for parties and weddings. Rivals like Aza, Ogaan and Pernia's Pop-Up."}
+            className="w-full rounded-md border border-line bg-surface px-3 py-2.5 placeholder:text-ink-3"
+          />
+          <p className="mt-1 text-xs text-ink-2">{500 - about.length} characters left. Rival names are looked up on Google; you can also write their addresses, like aza.com.</p>
 
           <details className="mt-6 group">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">

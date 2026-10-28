@@ -9,6 +9,7 @@ export function Competitors() {
   const { report, raw, run, running, caps } = useApp();
   const [list, setList] = useState<string[]>(() => raw?.competitors.map((c) => c.domain) ?? []);
   const [draft, setDraft] = useState("");
+  const [about, setAbout] = useState(raw?.input.context ?? "");
   const [err, setErr] = useState<string | null>(null);
   if (!report || !raw) return null;
 
@@ -33,7 +34,7 @@ export function Competitors() {
   };
 
   const current = raw.competitors.map((c) => c.domain);
-  const changed = list.length !== current.length || list.some((d) => !current.includes(d));
+  const changed = list.length !== current.length || list.some((d) => !current.includes(d)) || about.trim() !== (raw.input.context ?? "").trim();
   const rows = [
     { domain: `${report.domain}`, own: true, pages: raw.own.pages.length, seo: report.ownSeo.score, aeo: report.ownAeo.score, words: null as number | null, shared: null as number | null, topics: report.topTerms.slice(0, 5), blocked: [] as string[], schema: [...new Set(raw.own.pages.flatMap((p) => p.schemaTypes))].slice(0, 6) },
     ...report.competitors.map((c) => ({ domain: c.domain, own: false, pages: c.pages, seo: c.seoScore, aeo: c.aeoScore, words: c.medianWords, shared: c.sharedKeywords as number | null, topics: c.topTerms.slice(0, 5), blocked: c.retrievalBotsBlocked as string[], schema: c.schemaTypes.slice(0, 6) })),
@@ -48,6 +49,7 @@ export function Competitors() {
           AI works from general knowledge, so check each one is a real rival for the same searches. Remove any that are not and re-run.
         </Notice>
       )}
+      {raw.contextNote && <Notice tone="neutral" title="From your description">{raw.contextNote}</Notice>}
       {raw.competitorSource === "web" && (
         <Notice tone="neutral" title="Found from a free web search">
           These sites turned up for your site's main topics. This search is not Google and is not a ranking, so check each one is a real rival and swap any that are not.
@@ -125,13 +127,25 @@ export function Competitors() {
             <Button type="submit">Add</Button>
           </form>
           {err && <p className="text-sm text-crit" role="alert">{err}</p>}
+          <label className="block max-w-lg text-sm">
+            <span className="mb-1 block font-medium">About your business <span className="font-normal text-ink-2">(used when the list above is empty)</span></span>
+            <textarea rows={3} maxLength={500} value={about} onChange={(e) => setAbout(e.target.value)} placeholder="What you sell, who to and where. Name rivals if you know them." className="w-full rounded-md border border-line bg-surface px-3 py-2 placeholder:text-ink-3" />
+          </label>
           <Button
             variant="primary"
             disabled={running || !changed}
-            onClick={() => void run({ ...raw.input, competitors: list, autoDiscover: list.length === 0 })}
+            onClick={() => void run({ ...raw.input, competitors: list, autoDiscover: list.length === 0, context: about.trim() ? about.trim().slice(0, 500) : undefined })}
           >
             <Icon name="refresh" size={14} />
             Re-run with these competitors
+          </Button>
+          <Button
+            className="ml-2"
+            disabled={running}
+            onClick={() => void run({ ...raw.input, competitors: [], autoDiscover: true, context: about.trim() ? about.trim().slice(0, 500) : undefined })}
+          >
+            <Icon name="refresh" size={14} />
+            Find competitors again from the description
           </Button>
         </div>
       </Section>

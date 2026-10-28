@@ -1,3 +1,4 @@
+import { isStopword, tokenize } from "../text";
 import type { SiteTerm } from "../types";
 import { isBranded, type SiteTermMap } from "./keywords";
 
@@ -51,4 +52,66 @@ export function discoveryQueries(map: SiteTermMap, brandTokens: string[], countr
   for (const h of heads.slice(0, 4)) out.push(q(`${h} online`));
   out.push(q(`${heads[0]} brands`));
   return [...new Set(out)].slice(0, max);
+}
+
+/* ---------- Owner-supplied context ---------- */
+
+export interface ParsedContext {
+  /** Domains typed in the description, e.g. "we compete with aza.com". */
+  domains: string[];
+  /** Brand names listed after phrases like "competitors:", "like" or "such as". Need a search to turn into a domain. */
+  rivalNames: string[];
+  /** The description with those parts removed, used to build search queries. */
+  topicText: string;
+}
+
+const DOMAIN_RE = /\b(?:https?:\/\/)?(?:www\.)?((?:[a-z0-9][a-z0-9-]*\.)+[a-z]{2,24})\b(?:\/\S*)?/gi;
+const RIVAL_CLAUSE = /(?:competitors?|rivals?|competes? with|competing with|compete against|similar to|alternatives? to|such as|including|like|e\.g\.?|vs\.?|versus)\s*:?\s*([^.\n;()]+)/gi;
+const FILLER = new Set(
+  "brand company business store shop website site selling sell sells offer offers offering online india indian we our us my their they customers customer based platform provide provides focused focus specialising specializing specialises specializes also mainly mostly".split(" "),
+);
+
+export function parseContext(text: string): ParsedContext {
+  const raw = (text ?? "").slice(0, 600);
+  const domains = [...new Set([...raw.matchAll(DOMAIN_RE)].map((m) => m[1].toLowerCase()))].slice(0, 5);
+  let rest = raw.replace(DOMAIN_RE, " ");
+
+  const rivalNames: string[] = [];
+  for (const m of rest.matchAll(RIVAL_CLAUSE)) {
+    for (const part of m[1].split(/,|&|\/|\band\b|\bor\b|\betc\b/i)) {
+      const name = part.trim().replace(/^(?:(?:like|such as|including|as|e\.g\.?|namely)\s+)+/i, "").replace(/^[\s"'“‘]+|[\s"'”’]+$/g, "");
+      // Brand names are capitalised; this keeps "like a boutique for women" out.
+      if (!name || name.length > 32 || name.split(/\s+/).length > 4 || !/^[\p{Lu}]/u.test(name)) continue;
+      if (!rivalNames.some((r) => r.toLowerCase() === name.toLowerCase())) rivalNames.push(name);
+    }
+  }
+  rest = rest.replace(RIVAL_CLAUSE, " ");
+  return { domains, rivalNames: rivalNames.slice(0, 4), topicText: rest.replace(/\s+/g, " ").trim() };
+}
+
+/** Search queries built straight from the owner's description of the business. */
+export function contextQueries(topicText: string, country: string): string[] {
+  const words: string[] = [];
+  for (const w of tokenize(topicText)) {
+    if (isStopword(w) || FILLER.has(w) || w.length < 3 || /^\d+$/.test(w)) continue;
+    if (!words.includes(w)) words.push(w);
+  }
+  if (words.length < 2) return [];
+  const where = COUNTRY_NAME[country.toLowerCase()] ?? "";
+  const q = (s: string) => (where && s.includes(where) ? s : `${s} ${where}`).trim();
+  const out = [q(`${words.slice(0, 6).join(" ")}`), q(`${words.slice(0, 3).join(" ")} brands`)];
+  if (words.length >= 5) out.push(q(`${words.slice(-3).join(" ")} online`));
+  return [...new Set(out)];
+}
+
+/** Which result is really the named brand's own site? Matches the name against the domain label. */
+export function matchBrandDomain(name: string, domains: string[]): string | null {
+  const norm = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (norm.length < 3) return null;
+  for (const d of domains) {
+    const parts = d.toLowerCase().replace(/^www\./, "").split(".");
+    const label = (parts.length > 2 && parts[parts.length - 2].length <= 3 ? parts[parts.length - 3] : parts[parts.length - 2] ?? "").replace(/[^a-z0-9]/g, "");
+    if (label.length >= 4 && (label.includes(norm) || (norm.length >= 5 && norm.includes(label)))) return d;
+  }
+  return null;
 }

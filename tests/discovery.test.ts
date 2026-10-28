@@ -50,3 +50,40 @@ describe("competitor discovery queries", () => {
     expect(discoveryQueries(new Map(), [], "us")).toEqual([]);
   });
 });
+
+import { contextQueries, matchBrandDomain, parseContext } from "../src/lib/analysis/discovery";
+
+describe("owner description", () => {
+  const text = "Indian designer womenswear label for parties and weddings. Rivals like Aza, Ogaan and Pernia's Pop-Up. Also compete with perniaspopupshop.com and https://www.kalkifashion.com/women";
+
+  it("pulls out typed domains and capitalised rival names", () => {
+    const c = parseContext(text);
+    expect(c.domains).toEqual(["perniaspopupshop.com", "kalkifashion.com"]);
+    expect(c.rivalNames).toEqual(expect.arrayContaining(["Aza", "Ogaan", "Pernia's Pop-Up"]));
+  });
+
+  it("does not mistake ordinary 'like' phrases or abbreviations for rivals", () => {
+    const c = parseContext("We run a boutique like a small studio, e.g. for gifts. Founded by i.e. nobody.");
+    expect(c.rivalNames).toEqual([]);
+    expect(c.domains).toEqual([]);
+  });
+
+  it("builds search queries from the description without the rival clause", () => {
+    const qs = contextQueries(parseContext(text).topicText, "in");
+    expect(qs.length).toBeGreaterThan(0);
+    expect(qs[0]).toContain("designer");
+    expect(qs[0]).toContain("india");
+    expect(qs.join(" ")).not.toMatch(/aza|ogaan/);
+  });
+
+  it("returns no queries for a description with nothing to search", () => {
+    expect(contextQueries("We sell stuff", "us")).toEqual([]);
+  });
+
+  it("matches a brand name to its own site, not a listicle", () => {
+    expect(matchBrandDomain("Pernia's Pop-Up", ["vogue.in", "perniaspopupshop.com"])).toBe("perniaspopupshop.com");
+    expect(matchBrandDomain("Ogaan", ["ogaan.com", "ensembleindia.com"])).toBe("ogaan.com");
+    expect(matchBrandDomain("Aza", ["vogue.in", "azafashions.com"])).toBe("azafashions.com");
+    expect(matchBrandDomain("Aza", ["vogue.in", "ensembleindia.com"])).toBeNull();
+  });
+});
