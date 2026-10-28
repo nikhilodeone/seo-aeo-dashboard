@@ -38,7 +38,7 @@ export function Overview() {
         actions={
           <Button
             disabled={running}
-            onClick={() => void run({ ...raw.input, competitors: raw.competitors.map((c) => c.domain), autoDiscover: false })}
+            onClick={() => void run({ ...raw.input, competitors: raw.competitors.map((c) => c.domain), autoDiscover: raw.competitors.length === 0 })}
           >
             <Icon name="refresh" size={14} />
             Re-run analysis

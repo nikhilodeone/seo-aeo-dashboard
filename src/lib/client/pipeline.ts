@@ -84,6 +84,8 @@ export async function runPipeline(
     }
   };
 
+  // With no competitors typed in, always try to find some. A caller can no longer switch this off by mistake.
+  input = { ...input, autoDiscover: true };
   const manual = [...new Set(input.competitors.map((c) => normalizeUrlInput(c)).filter((c): c is string => !!c).map(hostOf))].filter((d) => d !== ownHost).slice(0, 5);
 
   /* 2a. Competitor discovery queries: broad "what you sell + where" searches, run first so a small budget never starves them. */
