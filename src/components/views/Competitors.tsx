@@ -56,7 +56,9 @@ export function Competitors() {
       {raw.competitorSource === "serp" && <Notice title="Found from Google results">These sites showed up most often for your keywords. Swap in any that are not true rivals and re-run.</Notice>}
 
       {report.competitors.length === 0 ? (
-        <Empty title="No competitor sites were read">Add up to five competitor websites below, then re-run. Pick sites that rank for the searches you want.</Empty>
+        <Empty title="No competitor sites were read">
+          {raw.discoverNote ? <>{raw.discoverNote} </> : null}Type up to five competitor websites below (for example <span className="font-medium">elare.in</span>), then choose Re-run. Pick sites that rank for the searches you want. A free Serper key in Vercel finds them automatically.
+        </Empty>
       ) : (
         <TableWrap>
           <table className="w-full text-sm">

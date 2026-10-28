@@ -97,6 +97,7 @@ export async function runPipeline(
   let aiQs: AiQuestion[] = [];
   const suggested: SuggestedCompetitor[] = [];
   let webNote = "";
+  let discoverNote = "";
 
   const tally = new Map<string, { n: number; sum: number }>();
   for (const res of Object.values(serp)) {
@@ -161,9 +162,11 @@ export async function runPipeline(
       onStep("discover", compDomains.length ? "done" : "skipped", compDomains.length ? `AI suggested ${compDomains.length}. Check they are right` : "AI found no competitors");
     } catch (e) {
       if (e instanceof api.ApiError && e.code === "auth") throw e;
+      discoverNote = `AI suggestions failed: ${(e as Error).message}`;
       onStep("discover", "skipped", (e as Error).message);
     }
   } else {
+    if (input.autoDiscover) discoverNote = webTried ? `The free web search found no usable competitors. ${webNote}`.trim() : caps.serp ? "Google results did not show any clear competitors for your keywords." : "No search or AI key is set, so competitors could not be found automatically.";
     onStep("discover", "skipped", !input.autoDiscover ? "No competitors entered" : webTried ? `${webNote || "The web search found no clear competitors"}. Enter competitor URLs to compare` : "Enter competitor URLs, or add a Serper or Anthropic key to find them automatically");
   }
 
@@ -230,6 +233,7 @@ export async function runPipeline(
     own,
     competitors,
     competitorSource: source,
+    discoverNote: discoverNote || undefined,
     suggested,
     competitorErrors,
     serp,

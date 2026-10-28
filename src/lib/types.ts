@@ -129,6 +129,8 @@ export interface RawData {
   collectedAt: string;
   own: SiteProfile;
   competitors: SiteProfile[];
+  /** Why automatic competitor discovery found nothing, shown on the Competitors tab. */
+  discoverNote?: string;
   competitorSource: "manual" | "serp" | "web" | "ai" | "none";
   suggested: SuggestedCompetitor[];
   competitorErrors: { domain: string; error: string }[];
